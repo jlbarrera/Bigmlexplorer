@@ -3,4 +3,5 @@
     <string name="start">Start</string>
     <string name="username">Username</string>
     <string name="api_key">API Key</string>
+    <string name="predict">Predict</string>
 </resources>

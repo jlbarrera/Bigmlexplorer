@@ -1,12 +1,19 @@
 package com.e.bigmlexplorer;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.os.Build;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.LinearLayout;
@@ -26,20 +33,24 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
 import com.google.android.material.slider.Slider;
 import com.google.android.material.textfield.TextInputLayout;
+import com.e.bigmlexplorer.actionablemodels.*;
 
 public class ModelDetail extends AppCompatActivity {
 
     public static String MODEL_ID;
     public static String DATASET_ID;
+    public static String OBJECTIVE;
     public static Map<Integer, String> slider_input_fields = new HashMap<Integer, String>();
     public static Map<Integer, String> categorical_input_fields = new HashMap<Integer, String>();
     public static Map<String, Integer> categorical_options_input_fields = new HashMap<String, Integer>();
+    public static Map<Integer, Object> input_fields = new HashMap<Integer, Object>();
 
 
     @Override
@@ -69,6 +80,8 @@ public class ModelDetail extends AppCompatActivity {
                             text_model_name.setText(jsonObject.getString("name"));
 
                             DATASET_ID = jsonObject.getString("dataset").split("/")[1];
+                            OBJECTIVE = jsonObject.getString("objective_field_name");
+
                             createInputFields();
 
                         } catch (JSONException e) {
@@ -112,6 +125,7 @@ public class ModelDetail extends AppCompatActivity {
                                 if (fields.get(key) instanceof JSONObject && !objective_field.getString("id").equals(key)) {
                                     JSONObject field = (JSONObject) fields.get(key);
                                     int Id = Integer.parseInt(key);
+                                    input_fields.put(Id, null);
 
                                     // Numeric fields
                                     if (field.getString("optype").equals("numeric")) {
@@ -175,6 +189,12 @@ public class ModelDetail extends AppCompatActivity {
         slider.setValueTo(maximum);
         slider.setValueFrom(minimum);
         slider.setId(Id);
+        slider.addOnChangeListener(new Slider.OnChangeListener() {
+            @Override
+            public void onValueChange(@NonNull Slider slider, float value, boolean fromUser) {
+                predict();
+            }
+        });
 
         TextView textview = new TextView(this);
         textview.setText(label);
@@ -212,17 +232,24 @@ public class ModelDetail extends AppCompatActivity {
                 options);
 
         final AutoCompleteTextView dropDown = new AutoCompleteTextView(ModelDetail.this);
+        dropDown.setInputType(InputType.TYPE_NULL);
         dropDown.setId(Id);
         dropDown.setThreshold(0);
-        dropDown.setOnFocusChangeListener(
-                new View.OnFocusChangeListener() {
-                    @Override
-                    public void onFocusChange(View view, boolean hasFocus) {
-                        if (hasFocus) {
-                            dropDown.showDropDown();
-                        }
-                    }
-                });
+        dropDown.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dropDown.showDropDown();
+            }
+        });
+        dropDown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+
+            @Override
+            public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
+                predict();
+            }
+
+        });
+
         dropDown.setAdapter(adapter);
         textInputLayout.addView(dropDown, textInputPosition);
 
@@ -240,14 +267,17 @@ public class ModelDetail extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
+    public void startPrediction(View view) {
+        predict();
+    }
+
     /**
      * Create a prediction from input values
      *
-     * @param view
      */
-    public void predict(View view) {
+    public void predict() {
 
-        // Build the JSON Body
+        // Build the JSON Body and input fields
         JSONObject jsonBody = new JSONObject();
         JSONObject inputData = new JSONObject();
         try {
@@ -255,14 +285,22 @@ public class ModelDetail extends AppCompatActivity {
             LinearLayout sliderContainer = findViewById(R.id.fieldsContainer);
             for (Integer key : slider_input_fields.keySet()) {
                 @SuppressLint("ResourceType") Slider slider = sliderContainer.findViewById(key);
-                inputData.put(slider_input_fields.get(key), slider.getValue());
+                float sliderValue = slider.getValue();
+                if (sliderValue != 0.0) {
+                    inputData.put(slider_input_fields.get(key), slider.getValue());
+                    input_fields.put(key, slider.getValue());
+                }
             }
             // Get values from dropdown (categorical)
             LinearLayout fieldsContainer = findViewById(R.id.fieldsContainer);
             for (Integer key : categorical_input_fields.keySet()) {
                 AutoCompleteTextView dropdown = fieldsContainer.findViewById(key);
-                int option_id = categorical_options_input_fields.get(dropdown.getText().toString());
-                inputData.put(categorical_input_fields.get(key), option_id);
+                String dropdownValue = dropdown.getText().toString();
+                if (!dropdownValue.equals("")) {
+                    int option_id = categorical_options_input_fields.get(dropdownValue);
+                    inputData.put(categorical_input_fields.get(key), option_id);
+                    input_fields.put(key, dropdownValue);
+                }
             }
             jsonBody.put("model", "model/" + MODEL_ID);
             jsonBody.put("input_data", inputData);
@@ -270,50 +308,83 @@ public class ModelDetail extends AppCompatActivity {
             e.printStackTrace();
         }
 
+        if (localModel()) { // Check if it's a local model
+            String result = offlinePrediction();
+            TextView prediction = findViewById(R.id.prediction);
+            prediction.setText(OBJECTIVE + ": " + result);
+        } else {  // Online prediction
 
-        // POST to prediction endpoint
-        String URL = "https://bigml.io/andromeda/prediction/?username=" + MainActivity.USERNAME + ";api_key=" + MainActivity.API_KEY;
-        final String requestBody = jsonBody.toString().replaceAll("\\\\", "");
+            // POST to prediction endpoint
+            String URL = "https://bigml.io/andromeda/prediction/?username=" + MainActivity.USERNAME + ";api_key=" + MainActivity.API_KEY;
+            final String requestBody = jsonBody.toString().replaceAll("\\\\", "");
 
-        RequestQueue queue = Volley.newRequestQueue(this);
-        StringRequest stringRequest = new StringRequest(Request.Method.POST, URL, new Response.Listener<String>() {
+            RequestQueue queue = Volley.newRequestQueue(this);
+            StringRequest stringRequest = new StringRequest(Request.Method.POST, URL, new Response.Listener<String>() {
 
-            @Override
-            public void onResponse(String response) {
-                // Parse prediction
-                try {
-                    JSONObject jsonResponse = new JSONObject(response);
-                    String prediction_result = jsonResponse.get("output").toString();
-                    String objective_field_name = jsonResponse.get("objective_field_name").toString();
+                @Override
+                public void onResponse(String response) {
+                    // Parse prediction
+                    try {
+                        JSONObject jsonResponse = new JSONObject(response);
+                        String prediction_result = jsonResponse.get("output").toString();
+                        String objective_field_name = jsonResponse.get("objective_field_name").toString();
+                        TextView prediction = findViewById(R.id.prediction);
+                        prediction.setText(objective_field_name + ": " + prediction_result);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }, new Response.ErrorListener() {
+
+                @Override
+                public void onErrorResponse(VolleyError error) {
                     TextView prediction = findViewById(R.id.prediction);
-                    prediction.setText(objective_field_name + ": " + prediction_result);
-                } catch (JSONException e) {
-                    e.printStackTrace();
+                    prediction.setText(error.toString());
                 }
-            }
-        }, new Response.ErrorListener() {
-
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                TextView prediction = findViewById(R.id.prediction);
-                prediction.setText(error.toString());
-            }
-        }) {
-            @Override
-            public String getBodyContentType() {
-                return "application/json; charset=utf-8";
-            }
-
-            @Override
-            public byte[] getBody() throws AuthFailureError {
-                try {
-                    return requestBody == null ? null : requestBody.getBytes("utf-8");
-                } catch (UnsupportedEncodingException error) {
-                    return null;
+            }) {
+                @Override
+                public String getBodyContentType() {
+                    return "application/json; charset=utf-8";
                 }
-            }
-        };
 
-        queue.add(stringRequest);
+                @Override
+                public byte[] getBody() throws AuthFailureError {
+                    try {
+                        return requestBody == null ? null : requestBody.getBytes("utf-8");
+                    } catch (UnsupportedEncodingException error) {
+                        return null;
+                    }
+                }
+            };
+
+            queue.add(stringRequest);
+        }
+
+    }
+
+    public boolean localModel() {
+        try {
+            String className = "com.e.bigmlexplorer.actionablemodels."+OBJECTIVE;
+            Class.forName(className);
+            return true;
+        } catch( ClassNotFoundException e ) {
+            return false;
+        }
+    }
+
+    public String offlinePrediction() {
+        String result = "";
+
+        // Titanic Survival Model
+        if (OBJECTIVE.equals("Survived") && input_fields.size() == 4) {
+            Double age = input_fields.get(0) == null ?  null: new Double(input_fields.get(0).toString());
+            String classDept = input_fields.get(1) == null ?  null: input_fields.get(1).toString();
+            Double fareToday = input_fields.get(2) == null ?  null: new Double(input_fields.get(2).toString());
+            String joined = input_fields.get(3) == null ?  null: input_fields.get(3).toString();
+
+            result = Survived.predictSurvived(age, classDept, fareToday, joined);
+        }
+
+        return result;
     }
 }
