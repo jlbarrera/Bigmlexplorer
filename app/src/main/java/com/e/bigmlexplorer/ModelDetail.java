@@ -7,16 +7,20 @@ import android.content.Intent;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.MenuItem;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.view.View;
 
@@ -47,6 +51,7 @@ public class ModelDetail extends AppCompatActivity {
     public static String MODEL_ID;
     public static String DATASET_ID;
     public static String OBJECTIVE;
+    public static Boolean OFFLINE;
     public static Map<Integer, String> slider_input_fields = new HashMap<Integer, String>();
     public static Map<Integer, String> categorical_input_fields = new HashMap<Integer, String>();
     public static Map<String, Integer> categorical_options_input_fields = new HashMap<String, Integer>();
@@ -58,7 +63,7 @@ public class ModelDetail extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_model_detail);
 
-        getSupportActionBar().setTitle("Model detail");
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         // Get parameters from Models Activity
         Intent intent = getIntent();
@@ -67,22 +72,37 @@ public class ModelDetail extends AppCompatActivity {
         String URL = "https://bigml.io/andromeda/model/" + MODEL_ID + "?username=" + MainActivity.USERNAME + ";api_key=" + MainActivity.API_KEY;
         RequestQueue queue = Volley.newRequestQueue(this);
 
-        // Get dataset id and create input fields
+        // Get dataset id and create input fields and set/unset offline mode
         StringRequest stringRequest = new StringRequest(Request.Method.GET, URL,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
+
                         // Parse json Models
                         try {
                             JSONObject jsonObject = new JSONObject(response);
 
-                            TextView text_model_name = findViewById(R.id.modelname);
-                            text_model_name.setText(jsonObject.getString("name"));
+                            getSupportActionBar().setTitle(jsonObject.getString("name"));
 
                             DATASET_ID = jsonObject.getString("dataset").split("/")[1];
                             OBJECTIVE = jsonObject.getString("objective_field_name");
+                            OFFLINE = islocalModel(); // If the model is downloaded, we set the offline prediction
 
+                            // Read Model's fields and build the view form
                             createInputFields();
+
+                            // Disable Predict button if offline mode
+                            if (OFFLINE) {
+                                Button predict_button = findViewById(R.id.predict);
+                                predict_button.setEnabled(false);
+                                predict_button.setText(R.string.offline_mode);
+                            }
+
+                            TextView prediction = findViewById(R.id.prediction);
+                            prediction.setText(OBJECTIVE);
+
+                            ProgressBar loading = findViewById(R.id.progressbar_loading);
+                            loading.setVisibility(View.GONE);
 
                         } catch (JSONException e) {
                             e.printStackTrace();
@@ -132,7 +152,7 @@ public class ModelDetail extends AppCompatActivity {
                                         int maximum = field.getJSONObject("summary").getInt("maximum");
                                         int minimum = field.getJSONObject("summary").getInt("minimum");
                                         String label = field.getString("label");
-                                        createSlider(Id, 1, maximum, minimum, label);
+                                        createSlider(Id, 0, maximum, minimum, label);
                                         slider_input_fields.put(Id, key);
                                     }
 
@@ -189,13 +209,14 @@ public class ModelDetail extends AppCompatActivity {
         slider.setValueTo(maximum);
         slider.setValueFrom(minimum);
         slider.setId(Id);
-        slider.addOnChangeListener(new Slider.OnChangeListener() {
-            @Override
-            public void onValueChange(@NonNull Slider slider, float value, boolean fromUser) {
-                predict();
-            }
-        });
-
+        if (OFFLINE) { // To avoid making to much API request
+            slider.addOnChangeListener(new Slider.OnChangeListener() {
+                @Override
+                public void onValueChange(@NonNull Slider slider, float value, boolean fromUser) {
+                    predict();
+                }
+            });
+        }
         TextView textview = new TextView(this);
         textview.setText(label);
 
@@ -241,14 +262,17 @@ public class ModelDetail extends AppCompatActivity {
                 dropDown.showDropDown();
             }
         });
-        dropDown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
-            @Override
-            public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
-                predict();
-            }
+        if (OFFLINE) { // To avoid making to much API request
+            dropDown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
-        });
+                @Override
+                public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
+                    predict();
+                }
+
+            });
+        }
 
         dropDown.setAdapter(adapter);
         textInputLayout.addView(dropDown, textInputPosition);
@@ -284,7 +308,7 @@ public class ModelDetail extends AppCompatActivity {
             // Get values from sliders
             LinearLayout sliderContainer = findViewById(R.id.fieldsContainer);
             for (Integer key : slider_input_fields.keySet()) {
-                @SuppressLint("ResourceType") Slider slider = sliderContainer.findViewById(key);
+                Slider slider = sliderContainer.findViewById(key);
                 float sliderValue = slider.getValue();
                 if (sliderValue != 0.0) {
                     inputData.put(slider_input_fields.get(key), slider.getValue());
@@ -308,7 +332,7 @@ public class ModelDetail extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        if (localModel()) { // Check if it's a local model
+        if (OFFLINE) { // Check if it's a local model
             String result = offlinePrediction();
             TextView prediction = findViewById(R.id.prediction);
             prediction.setText(OBJECTIVE + ": " + result);
@@ -362,7 +386,7 @@ public class ModelDetail extends AppCompatActivity {
 
     }
 
-    public boolean localModel() {
+    public boolean islocalModel() {
         try {
             String className = "com.e.bigmlexplorer.actionablemodels."+OBJECTIVE;
             Class.forName(className);
@@ -386,5 +410,17 @@ public class ModelDetail extends AppCompatActivity {
         }
 
         return result;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                finish();
+                return true;
+
+            default:
+                return super.onOptionsItemSelected(item);
+        }
     }
 }

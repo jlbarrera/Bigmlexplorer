@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -44,6 +45,7 @@ public class modelFragment extends Fragment {
         view = inflater.inflate(R.layout.fragment_model, container, false);
         listview = view.findViewById(R.id.model_list);
         list = new ArrayList<String>();
+        final ProgressBar loading = view.findViewById(R.id.progressbar_loading);
 
         // Instantiate the RequestQueue to models endpoint
         RequestQueue queue = Volley.newRequestQueue(getActivity().getApplicationContext());
@@ -55,8 +57,9 @@ public class modelFragment extends Fragment {
                     @Override
                     public void onResponse(String response) {
 
+                        loading.setVisibility(View.GONE);
                         ArrayList<String> model_list_names = getModelListNames(response);
-                        adapter = new ArrayAdapter(getActivity(), android.R.layout.simple_list_item_1, model_list_names);
+                        adapter = new ArrayAdapter(getActivity(), R.layout.model_elem_list, model_list_names);
                         listview.setAdapter(adapter);
 
                         listview.setOnItemClickListener(new AdapterView.OnItemClickListener(){
