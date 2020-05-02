@@ -7,10 +7,13 @@
     tools:context=".Models">
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/nestedScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:fillViewport="true"
         app:layout_behavior="android.support.design.widget.AppBarLayout$ScrollingViewBehavior"
-        android:fillViewport="true">
+        tools:layout_editor_absoluteX="-93dp"
+        tools:layout_editor_absoluteY="362dp">
 
         <fragment
             android:id="@+id/fragment"

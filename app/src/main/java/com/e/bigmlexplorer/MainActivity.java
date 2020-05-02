@@ -18,6 +18,7 @@ public class MainActivity extends AppCompatActivity {
     public static String API_KEY_LABEL  = "api_key";
     public static String USERNAME = "";
     public static String API_KEY = "";
+    public static String STORAGE = "./storage";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

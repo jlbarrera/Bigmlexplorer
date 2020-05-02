@@ -4,7 +4,7 @@ android {
     compileSdkVersion 28
     defaultConfig {
         applicationId "com.e.bigmlexplorer"
-        minSdkVersion 19
+        minSdkVersion 26
         targetSdkVersion 28
         versionCode 1
         versionName "1.0"
@@ -14,6 +14,13 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    configurations {
+        all { // You should exclude one of them not both of them
+            exclude group: "org.apache.lucene", module: "lucene-analyzers"
+            exclude group: "org.hamcrest", module: "hamcrest-core"
+            exclude group: "org.apache.lucene", module: "lucene-analyzers-common"
         }
     }
 }
@@ -29,4 +36,5 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
     implementation 'com.android.volley:volley:1.1.1'
     implementation 'com.google.android.material:material:1.2.0-alpha05'
+    implementation 'org.bigml:bigml-binding:1.8.13'
 }
