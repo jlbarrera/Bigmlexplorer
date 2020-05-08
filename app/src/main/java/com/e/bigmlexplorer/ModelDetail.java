@@ -1,20 +1,18 @@
 package com.e.bigmlexplorer;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.content.Intent;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 
-import android.os.Build;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
@@ -24,37 +22,38 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.view.View;
 
-import com.android.volley.AuthFailureError;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.StringRequest;
-import com.android.volley.toolbox.Volley;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.json.JSONArray;
+import org.bigml.binding.AuthenticationException;
+import org.bigml.binding.BigMLClient;
+import org.bigml.binding.LocalEnsemble;
+import org.bigml.binding.LocalPredictiveModel;
+import org.bigml.binding.localmodel.Prediction;
+import org.bigml.binding.utils.Utils;
+import org.json.simple.JSONObject;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONValue;
 
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import com.google.android.material.slider.Slider;
 import com.google.android.material.textfield.TextInputLayout;
 import com.e.bigmlexplorer.actionablemodels.*;
+import org.bigml.binding.LocalPredictiveModel;
 
 public class ModelDetail extends AppCompatActivity {
 
     public static String MODEL_ID;
+    public static String MODEL_NAME;
+    public static String MODEL_TYPE;
     public static String DATASET_ID;
     public static String OBJECTIVE;
-    public static Boolean OFFLINE;
+    public static LocalPredictiveModel LOCALMODEL;
+    public static LocalEnsemble LOCALENSEMBLE;
     public static Map<Integer, String> slider_input_fields = new HashMap<Integer, String>();
     public static Map<Integer, String> categorical_input_fields = new HashMap<Integer, String>();
-    public static Map<String, Integer> categorical_options_input_fields = new HashMap<String, Integer>();
+    public static Map<String, Long> categorical_options_input_fields = new HashMap<String, Long>();
     public static Map<Integer, Object> input_fields = new HashMap<Integer, Object>();
 
 
@@ -63,133 +62,141 @@ public class ModelDetail extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_model_detail);
 
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        // Clear field lists
+        categorical_input_fields.clear();
+        slider_input_fields.clear();
+        categorical_options_input_fields.clear();
+        input_fields.clear();
 
         // Get parameters from Models Activity
         Intent intent = getIntent();
         MODEL_ID = intent.getStringExtra(modelFragment.DETAIL_MODEL);
+        MODEL_NAME = intent.getStringExtra(modelFragment.MODEL_NAME);
+        MODEL_TYPE = intent.getStringExtra(modelFragment.MODEL_TYPE);
 
-        String URL = "https://bigml.io/andromeda/model/" + MODEL_ID + "?username=" + MainActivity.USERNAME + ";api_key=" + MainActivity.API_KEY;
-        RequestQueue queue = Volley.newRequestQueue(this);
+        final ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
+            actionBar.setDisplayHomeAsUpEnabled(true);
+            actionBar.setTitle(MODEL_NAME);
+        }
 
-        // Get dataset id and create input fields and set/unset offline mode
-        StringRequest stringRequest = new StringRequest(Request.Method.GET, URL,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-
-                        // Parse json Models
-                        try {
-                            JSONObject jsonObject = new JSONObject(response);
-
-                            getSupportActionBar().setTitle(jsonObject.getString("name"));
-
-                            DATASET_ID = jsonObject.getString("dataset").split("/")[1];
-                            OBJECTIVE = jsonObject.getString("objective_field_name");
-                            OFFLINE = islocalModel(); // If the model is downloaded, we set the offline prediction
-
-                            // Read Model's fields and build the view form
-                            createInputFields();
-
-                            // Disable Predict button if offline mode
-                            if (OFFLINE) {
-                                Button predict_button = findViewById(R.id.predict);
-                                predict_button.setEnabled(false);
-                                predict_button.setText(R.string.offline_mode);
-                            }
-
-                            TextView prediction = findViewById(R.id.prediction);
-                            prediction.setText(OBJECTIVE);
-
-                            ProgressBar loading = findViewById(R.id.progressbar_loading);
-                            loading.setVisibility(View.GONE);
-
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }, new Response.ErrorListener() {
+        // API call to get model's dataset
+        @SuppressLint("StaticFieldLeak") AsyncTask asynctask = new AsyncTask() {
             @Override
-            public void onErrorResponse(VolleyError error) {
+            protected JSONObject doInBackground(Object[] objects) {
+                BigMLClient api = null;
+                JSONObject dataset = null;
 
+                try {
+                    api = new BigMLClient(
+                            MainActivity.USERNAME,
+                            MainActivity.API_KEY,
+                            MainActivity.STORAGE
+                    );
+
+                    JSONObject model = null;
+                    JSONObject model_object = null;
+                    if (MODEL_TYPE.equals("Model")) {
+                        model = api.getModel(MODEL_ID);
+                        model_object = (JSONObject) model.get("object");
+                        LOCALMODEL = new LocalPredictiveModel(model);
+                    } else if (MODEL_TYPE.equals("Ensemble")) {
+                        model = api.getEnsemble(MODEL_ID);
+                        model_object = (JSONObject) model.get("object");
+                        LOCALENSEMBLE = new LocalEnsemble(api, model);
+                    }
+
+                    DATASET_ID = (String) model_object.get("dataset");
+                    OBJECTIVE = (String) model_object.get("objective_field_name");
+                    dataset = api.getDataset(DATASET_ID);
+
+                } catch (AuthenticationException e) {
+                    e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                return dataset;
             }
-        });
 
-        // Add the request to the RequestQueue.
-        queue.add(stringRequest);
+            @Override
+            protected void onPostExecute(Object o) {
+                JSONObject dataset = (JSONObject) o;
+                // Read Model's fields and build the view form
+                createInputFields(dataset);
+            }
+        };
+
+        asynctask.execute();
     }
 
 
     /**
      * Read dataset fields and types and create input fields in the Activity
      */
-    @SuppressLint("ResourceType")
-    public void createInputFields() {
+    public void createInputFields(JSONObject dataset) {
 
-        RequestQueue queue = Volley.newRequestQueue(this);
-        String URL = "https://bigml.io/andromeda/dataset/" + DATASET_ID + "?username=" + MainActivity.USERNAME + ";api_key=" + MainActivity.API_KEY;
+        JSONObject dataset_object = (JSONObject) dataset.get("object");
+        JSONObject objective_field = (JSONObject) dataset_object.get("objective_field");
+        String objective_field_id = (String) objective_field.get("id");
 
-        StringRequest stringRequest = new StringRequest(Request.Method.GET, URL,
-                new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        // Parse json Models
-                        try {
-                            JSONObject jsonObject = new JSONObject(response);
-                            JSONObject objective_field = jsonObject.getJSONObject("objective_field");
-                            JSONObject fields = jsonObject.getJSONObject("fields");
-                            Iterator<String> keys = fields.keys();
+        // Get fields from dataset and build the view
+        JSONObject fields = (JSONObject) Utils.getJSONObject(
+                dataset, "object.fields");
 
-                            while (keys.hasNext()) {
-                                String key = keys.next();
-                                if (fields.get(key) instanceof JSONObject && !objective_field.getString("id").equals(key)) {
-                                    JSONObject field = (JSONObject) fields.get(key);
-                                    int Id = Integer.parseInt(key);
-                                    input_fields.put(Id, null);
+        for (Object k : fields.keySet()) {
 
-                                    // Numeric fields
-                                    if (field.getString("optype").equals("numeric")) {
-                                        int maximum = field.getJSONObject("summary").getInt("maximum");
-                                        int minimum = field.getJSONObject("summary").getInt("minimum");
-                                        String label = field.getString("label");
-                                        createSlider(Id, 0, maximum, minimum, label);
-                                        slider_input_fields.put(Id, key);
-                                    }
+            String key = (String) k;
+            
+            if (fields.get(key) instanceof JSONObject && !objective_field_id.equals(key)) {
+                JSONObject field = (JSONObject) fields.get(key);
+                int Id = Integer.parseInt(key);
+                input_fields.put(Id, null);
 
-                                    // Categorical fields
-                                    if (field.getString("optype").equals("categorical")) {
-                                        JSONArray categories = field.getJSONObject("summary").getJSONArray("categories");
-                                        int len = categories.length();
-                                        String[] options = new String[len];
-                                        for (int i = 0; i < len; i++) {
-                                            JSONArray category = categories.getJSONArray(i);
-                                            int category_id = (int) category.get(1);
-                                            String category_name = (String) category.get((0));
-                                            categorical_options_input_fields.put(category_name, category_id);
-                                            options[i] = category_name;
-                                        }
-                                        String label = field.getString("label");
-                                        createDropDown(Id, options, label);
-                                        categorical_input_fields.put(Id, key);
-                                    }
-                                }
-                            }
+                // Common fields values
+                String field_type = (String) field.get("optype");
+                JSONObject summary = (JSONObject) field.get("summary");
+                String label = (String) field.get("label");
 
+                // Numeric fields
+                if (field_type.equals("numeric")) {
+                    int maximum = 0;
+                    int minimum = 0;
+                    Object max = summary.get("maximum");
+                    Object min = summary.get("minimum");
+                    maximum = ((Number) max).intValue();
+                    minimum = ((Number) min).intValue();
+                    createSlider(Id, 0, maximum, minimum, label);
+                    slider_input_fields.put(Id, key);
+                }
 
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
+                // Categorical fields
+                if (field_type.equals("categorical")) {
+                    JSONArray categories = (JSONArray) summary.get("categories");
+                    int len = categories.size();
+                    String[] options = new String[len];
+                    for (int i = 0; i < len; i++) {
+                        JSONArray category = (JSONArray) categories.get(i);
+                        Long category_id = (Long) category.get(1);
+                        String category_name = (String) category.get((0));
+                        categorical_options_input_fields.put(category_name, category_id);
+                        options[i] = category_name;
                     }
-                }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
+                    createDropDown(Id, options, label);
+                    categorical_input_fields.put(Id, key);
+                }
 
             }
-        });
 
-        // Add the request to the RequestQueue.
-        queue.add(stringRequest);
+        }
 
+        // Update Objective in the view
+        TextView prediction = findViewById(R.id.prediction);
+        prediction.setText(OBJECTIVE);
+
+        // Hide the loading
+        ProgressBar loading = findViewById(R.id.progressbar_loading);
+        loading.setVisibility(View.GONE);
     }
 
     /**
@@ -209,14 +216,18 @@ public class ModelDetail extends AppCompatActivity {
         slider.setValueTo(maximum);
         slider.setValueFrom(minimum);
         slider.setId(Id);
-        if (OFFLINE) { // To avoid making to much API request
-            slider.addOnChangeListener(new Slider.OnChangeListener() {
-                @Override
-                public void onValueChange(@NonNull Slider slider, float value, boolean fromUser) {
+
+        slider.addOnChangeListener(new Slider.OnChangeListener() {
+            @Override
+            public void onValueChange(@NonNull Slider slider, float value, boolean fromUser) {
+                try {
                     predict();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-            });
-        }
+            }
+        });
+
         TextView textview = new TextView(this);
         textview.setText(label);
 
@@ -263,16 +274,18 @@ public class ModelDetail extends AppCompatActivity {
             }
         });
 
-        if (OFFLINE) { // To avoid making to much API request
-            dropDown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        dropDown.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
-                @Override
-                public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
+            @Override
+            public void onItemClick(AdapterView<?> arg0, View arg1, int arg2, long arg3) {
+                try {
                     predict();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
+            }
 
-            });
-        }
+        });
 
         dropDown.setAdapter(adapter);
         textInputLayout.addView(dropDown, textInputPosition);
@@ -291,122 +304,57 @@ public class ModelDetail extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
-    public void startPrediction(View view) {
-        predict();
-    }
-
     /**
      * Create a prediction from input values
      *
      */
-    public void predict() {
+    public void predict() throws Exception {
 
         // Build the JSON Body and input fields
         JSONObject jsonBody = new JSONObject();
         JSONObject inputData = new JSONObject();
-        try {
-            // Get values from sliders
-            LinearLayout sliderContainer = findViewById(R.id.fieldsContainer);
-            for (Integer key : slider_input_fields.keySet()) {
-                Slider slider = sliderContainer.findViewById(key);
-                float sliderValue = slider.getValue();
-                if (sliderValue != 0.0) {
-                    inputData.put(slider_input_fields.get(key), slider.getValue());
-                    input_fields.put(key, slider.getValue());
-                }
+
+        // Get values from sliders
+        LinearLayout sliderContainer = findViewById(R.id.fieldsContainer);
+        for (Integer key : slider_input_fields.keySet()) {
+            Slider slider = sliderContainer.findViewById(key);
+            float sliderValue = slider.getValue();
+            if (sliderValue != 0.0) {
+                inputData.put(slider_input_fields.get(key), slider.getValue());
+                input_fields.put(key, slider.getValue());
             }
-            // Get values from dropdown (categorical)
-            LinearLayout fieldsContainer = findViewById(R.id.fieldsContainer);
-            for (Integer key : categorical_input_fields.keySet()) {
-                AutoCompleteTextView dropdown = fieldsContainer.findViewById(key);
-                String dropdownValue = dropdown.getText().toString();
-                if (!dropdownValue.equals("")) {
-                    int option_id = categorical_options_input_fields.get(dropdownValue);
-                    inputData.put(categorical_input_fields.get(key), option_id);
-                    input_fields.put(key, dropdownValue);
-                }
+        }
+        // Get values from dropdown (categorical)
+        LinearLayout fieldsContainer = findViewById(R.id.fieldsContainer);
+        for (Integer key : categorical_input_fields.keySet()) {
+            AutoCompleteTextView dropdown = fieldsContainer.findViewById(key);
+            String dropdownValue = dropdown.getText().toString();
+            if (!dropdownValue.equals("")) {
+                Long option_id = categorical_options_input_fields.get(dropdownValue);
+                inputData.put(categorical_input_fields.get(key), dropdownValue);
+                input_fields.put(key, dropdownValue);
             }
-            jsonBody.put("model", "model/" + MODEL_ID);
-            jsonBody.put("input_data", inputData);
-        } catch (JSONException e) {
-            e.printStackTrace();
         }
+        jsonBody.put("model", MODEL_ID);
+        jsonBody.put("input_data", inputData);
 
-        if (OFFLINE) { // Check if it's a local model
-            String result = offlinePrediction();
-            TextView prediction = findViewById(R.id.prediction);
-            prediction.setText(OBJECTIVE + ": " + result);
-        } else {  // Online prediction
+        String result = null;
+        result = offlinePrediction(inputData);
 
-            // POST to prediction endpoint
-            String URL = "https://bigml.io/andromeda/prediction/?username=" + MainActivity.USERNAME + ";api_key=" + MainActivity.API_KEY;
-            final String requestBody = jsonBody.toString().replaceAll("\\\\", "");
-
-            RequestQueue queue = Volley.newRequestQueue(this);
-            StringRequest stringRequest = new StringRequest(Request.Method.POST, URL, new Response.Listener<String>() {
-
-                @Override
-                public void onResponse(String response) {
-                    // Parse prediction
-                    try {
-                        JSONObject jsonResponse = new JSONObject(response);
-                        String prediction_result = jsonResponse.get("output").toString();
-                        String objective_field_name = jsonResponse.get("objective_field_name").toString();
-                        TextView prediction = findViewById(R.id.prediction);
-                        prediction.setText(objective_field_name + ": " + prediction_result);
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }, new Response.ErrorListener() {
-
-                @Override
-                public void onErrorResponse(VolleyError error) {
-                    TextView prediction = findViewById(R.id.prediction);
-                    prediction.setText(error.toString());
-                }
-            }) {
-                @Override
-                public String getBodyContentType() {
-                    return "application/json; charset=utf-8";
-                }
-
-                @Override
-                public byte[] getBody() throws AuthFailureError {
-                    try {
-                        return requestBody == null ? null : requestBody.getBytes("utf-8");
-                    } catch (UnsupportedEncodingException error) {
-                        return null;
-                    }
-                }
-            };
-
-            queue.add(stringRequest);
-        }
+        TextView prediction = findViewById(R.id.prediction);
+        prediction.setText(OBJECTIVE + ": " + result);
 
     }
 
-    public boolean islocalModel() {
-        try {
-            String className = "com.e.bigmlexplorer.actionablemodels."+OBJECTIVE;
-            Class.forName(className);
-            return true;
-        } catch( ClassNotFoundException e ) {
-            return false;
-        }
-    }
+    public String offlinePrediction(JSONObject inputData) throws Exception {
 
-    public String offlinePrediction() {
         String result = "";
-
-        // Titanic Survival Model
-        if (OBJECTIVE.equals("Survived") && input_fields.size() == 4) {
-            Double age = input_fields.get(0) == null ?  null: new Double(input_fields.get(0).toString());
-            String classDept = input_fields.get(1) == null ?  null: input_fields.get(1).toString();
-            Double fareToday = input_fields.get(2) == null ?  null: new Double(input_fields.get(2).toString());
-            String joined = input_fields.get(3) == null ?  null: input_fields.get(3).toString();
-
-            result = Survived.predictSurvived(age, classDept, fareToday, joined);
+        if (MODEL_TYPE.equals("Model")) {
+            Prediction prediction = LOCALMODEL.predict(inputData);
+            result = (String) prediction.get("prediction");
+        } else if (MODEL_TYPE.equals("Ensemble")) {
+            HashMap<String, Object> prediction = LOCALENSEMBLE.predict(inputData, null, null, null, null, null, true, null);
+            result = (String) prediction.get("prediction");
         }
 
         return result;
@@ -418,9 +366,18 @@ public class ModelDetail extends AppCompatActivity {
             case android.R.id.home:
                 finish();
                 return true;
+            case R.id.download:
+                finish();
 
             default:
                 return super.onOptionsItemSelected(item);
         }
     }
+
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.model_menu, menu);
+        return true;
+    }
+
+
 }

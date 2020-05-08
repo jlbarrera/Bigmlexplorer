@@ -36,6 +36,8 @@ public class modelFragment extends Fragment {
     ArrayList<String> list;
     ProgressBar loading;
     public static String DETAIL_MODEL = "detail_model";
+    public static String MODEL_NAME = "model_name";
+    public static String MODEL_TYPE = "model_type";
 
 
     @Override
@@ -61,8 +63,12 @@ public class modelFragment extends Fragment {
                             MainActivity.API_KEY,
                             MainActivity.STORAGE
                     );
+                    // Models
                     JSONObject models = api.listModels(null);
                     model_list_names = getModelListNames(models);
+                    // Ensembles
+                    JSONObject ensembles = api.listEnsembles(null);
+                    model_list_names.addAll(getEnsemblesListNames(ensembles));
                 } catch (AuthenticationException | JSONException e) {
                     e.printStackTrace();
                 }
@@ -101,8 +107,30 @@ public class modelFragment extends Fragment {
                 model_data.put("subtitle", "Model");
                 model_list_names.add(model_data);
                 String resource = (String) jo.get("resource");
-                list.add(resource.split("/")[1]);
+                list.add(resource);
             }
+        }
+
+        return model_list_names;
+    }
+
+    /**
+     * Parse JSON response and return Ensemble list
+     * @return Model list
+     */
+    public List<Map<String, String>> getEnsemblesListNames(JSONObject jsonObject) throws JSONException {
+        List<Map<String, String>> model_list_names = new ArrayList<Map<String, String>>();
+        JSONArray jsonArray = (JSONArray) jsonObject.get("objects");
+
+        for (int i = 0; i < jsonArray.size(); i++) {
+            JSONObject jo = (JSONObject) jsonArray.get(i);
+            Map<String, String> model_data = new HashMap<String, String>(2);
+            model_data.put("title", (String) jo.get("name"));
+            model_data.put("subtitle", "Ensemble");
+            model_list_names.add(model_data);
+            String resource = (String) jo.get("resource");
+            list.add(resource);
+
         }
 
         return model_list_names;
@@ -112,7 +140,7 @@ public class modelFragment extends Fragment {
      * Print model list to the View
      * @param model_list_names
      */
-    public void loadModelListView(List<Map<String, String>> model_list_names) {
+    public void loadModelListView(final List<Map<String, String>> model_list_names) {
         adapter = new SimpleAdapter(getActivity(), model_list_names,
                 R.layout.model_elem_list,
                 new String[]{"title", "subtitle"},
@@ -125,6 +153,8 @@ public class modelFragment extends Fragment {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 Intent intent = new Intent(getActivity(), ModelDetail.class);
                 intent.putExtra(DETAIL_MODEL, list.get(position));
+                intent.putExtra(MODEL_NAME, model_list_names.get(position).get("title"));
+                intent.putExtra(MODEL_TYPE, model_list_names.get(position).get("subtitle"));
                 startActivity(intent);
             }
         });
