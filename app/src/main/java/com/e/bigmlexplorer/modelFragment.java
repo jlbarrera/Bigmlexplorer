@@ -35,9 +35,6 @@ public class modelFragment extends Fragment {
     SimpleAdapter adapter;
     ArrayList<String> list;
     ProgressBar loading;
-    public static String DETAIL_MODEL = "detail_model";
-    public static String MODEL_NAME = "model_name";
-    public static String MODEL_TYPE = "model_type";
 
 
     @Override
@@ -130,7 +127,6 @@ public class modelFragment extends Fragment {
             model_list_names.add(model_data);
             String resource = (String) jo.get("resource");
             list.add(resource);
-
         }
 
         return model_list_names;
@@ -152,9 +148,9 @@ public class modelFragment extends Fragment {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 Intent intent = new Intent(getActivity(), ModelDetail.class);
-                intent.putExtra(DETAIL_MODEL, list.get(position));
-                intent.putExtra(MODEL_NAME, model_list_names.get(position).get("title"));
-                intent.putExtra(MODEL_TYPE, model_list_names.get(position).get("subtitle"));
+                intent.putExtra(MainActivity.DETAIL_MODEL, list.get(position));
+                intent.putExtra(MainActivity.MODEL_NAME, model_list_names.get(position).get("title"));
+                intent.putExtra(MainActivity.MODEL_TYPE, model_list_names.get(position).get("subtitle"));
                 startActivity(intent);
             }
         });

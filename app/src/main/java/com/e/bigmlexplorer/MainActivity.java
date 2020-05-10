@@ -19,6 +19,9 @@ public class MainActivity extends AppCompatActivity {
     public static String USERNAME = "";
     public static String API_KEY = "";
     public static String STORAGE = "./storage";
+    public static String DETAIL_MODEL = "detail_model";
+    public static String MODEL_NAME = "model_name";
+    public static String MODEL_TYPE = "model_type";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

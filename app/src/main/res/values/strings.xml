@@ -8,4 +8,7 @@
     <string name="settings">Settings</string>
     <string name="logout">Logout</string>
     <string name="update">Update</string>
+    <string name="prediction_saved">The prediction has been saved</string>
+    <string name="prediction_no_saved">The prediction could not be saved</string>
+    <string name="local_predictions">Saved predictions</string>
 </resources>

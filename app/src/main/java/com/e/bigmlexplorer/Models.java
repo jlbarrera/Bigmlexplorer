@@ -29,9 +29,13 @@ public class Models extends AppCompatActivity {
                 finish();
                 startActivity(getIntent());
                 return true;
+            case R.id.saved_predictions:
+                Intent intent_prediction = new Intent(this, SavedPredictions.class);
+                startActivity(intent_prediction);
+                return true;
             case R.id.settings:
-                Intent intent = new Intent(this, MainActivity.class);
-                startActivity(intent);
+                Intent intent_settings = new Intent(this, MainActivity.class);
+                startActivity(intent_settings);
                 return true;
             case R.id.logout:
                 /* DO DELETE */

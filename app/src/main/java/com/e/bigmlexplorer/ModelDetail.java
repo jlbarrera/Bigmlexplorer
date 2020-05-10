@@ -1,6 +1,7 @@
 package com.e.bigmlexplorer;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 
 import androidx.annotation.NonNull;
@@ -16,11 +17,11 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.view.View;
+import android.widget.Toast;
 
 
 import org.bigml.binding.AuthenticationException;
@@ -31,7 +32,6 @@ import org.bigml.binding.localmodel.Prediction;
 import org.bigml.binding.utils.Utils;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONArray;
-import org.json.simple.JSONValue;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,8 +39,6 @@ import java.util.concurrent.ExecutionException;
 
 import com.google.android.material.slider.Slider;
 import com.google.android.material.textfield.TextInputLayout;
-import com.e.bigmlexplorer.actionablemodels.*;
-import org.bigml.binding.LocalPredictiveModel;
 
 public class ModelDetail extends AppCompatActivity {
 
@@ -49,6 +47,7 @@ public class ModelDetail extends AppCompatActivity {
     public static String MODEL_TYPE;
     public static String DATASET_ID;
     public static String OBJECTIVE;
+    public static String PREDICTION;
     public static LocalPredictiveModel LOCALMODEL;
     public static LocalEnsemble LOCALENSEMBLE;
     public static Map<Integer, String> slider_input_fields = new HashMap<Integer, String>();
@@ -70,9 +69,9 @@ public class ModelDetail extends AppCompatActivity {
 
         // Get parameters from Models Activity
         Intent intent = getIntent();
-        MODEL_ID = intent.getStringExtra(modelFragment.DETAIL_MODEL);
-        MODEL_NAME = intent.getStringExtra(modelFragment.MODEL_NAME);
-        MODEL_TYPE = intent.getStringExtra(modelFragment.MODEL_TYPE);
+        MODEL_ID = intent.getStringExtra(MainActivity.DETAIL_MODEL);
+        MODEL_NAME = intent.getStringExtra(MainActivity.MODEL_NAME);
+        MODEL_TYPE = intent.getStringExtra(MainActivity.MODEL_TYPE);
 
         final ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
@@ -310,8 +309,21 @@ public class ModelDetail extends AppCompatActivity {
      */
     public void predict() throws Exception {
 
+       JSONObject inputData = getInputData();
+
+        PREDICTION = offlinePrediction(inputData);
+
+        TextView prediction = findViewById(R.id.prediction);
+        prediction.setText(OBJECTIVE + ": " + PREDICTION);
+
+    }
+
+    /**
+     * Read input data from fields
+     * @return input data
+     */
+    public JSONObject getInputData() {
         // Build the JSON Body and input fields
-        JSONObject jsonBody = new JSONObject();
         JSONObject inputData = new JSONObject();
 
         // Get values from sliders
@@ -335,15 +347,8 @@ public class ModelDetail extends AppCompatActivity {
                 input_fields.put(key, dropdownValue);
             }
         }
-        jsonBody.put("model", MODEL_ID);
-        jsonBody.put("input_data", inputData);
 
-        String result = null;
-        result = offlinePrediction(inputData);
-
-        TextView prediction = findViewById(R.id.prediction);
-        prediction.setText(OBJECTIVE + ": " + result);
-
+        return inputData;
     }
 
     public String offlinePrediction(JSONObject inputData) throws Exception {
@@ -366,9 +371,11 @@ public class ModelDetail extends AppCompatActivity {
             case android.R.id.home:
                 finish();
                 return true;
-            case R.id.download:
-                finish();
-
+            case R.id.save:
+                boolean saved = savePrediction();
+                int text = saved ? R.string.prediction_saved : R.string.prediction_no_saved;
+                Toast toast = Toast.makeText(this, text, Toast.LENGTH_SHORT);
+                toast.show();
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -379,5 +386,23 @@ public class ModelDetail extends AppCompatActivity {
         return true;
     }
 
+    public boolean savePrediction() {
+        boolean saved = false;
+
+        final JSONObject inputData = getInputData();
+
+        DatabasePredictionTask dbTask = new DatabasePredictionTask(this);
+        AsyncTask task = dbTask.execute(inputData);
+        try {
+            task.get();
+            saved = true;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        return saved;
+    }
 
 }
