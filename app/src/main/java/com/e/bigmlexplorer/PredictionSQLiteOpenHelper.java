@@ -78,4 +78,10 @@ public class PredictionSQLiteOpenHelper extends SQLiteOpenHelper {
         return predictions;
     }
 
+    public boolean deletePrediction(int id) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String where = PREDICTION_ID + " == " + id;
+        return (db.delete(PREDICTION_TABLE, where, null)) > 0;
+    }
+
 }

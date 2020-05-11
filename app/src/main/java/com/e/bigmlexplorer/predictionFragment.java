@@ -34,12 +34,8 @@ public class predictionFragment extends Fragment {
 
     View view;
     ListView listview;
-    ArrayAdapter<String> adapter;
-    ArrayList<String> list;
+    PredictionAdapter adapter;
     ProgressBar loading;
-    public static String DETAIL_MODEL = "detail_model";
-    public static String MODEL_NAME = "model_name";
-    public static String MODEL_TYPE = "model_type";
 
 
     @Override
@@ -49,23 +45,29 @@ public class predictionFragment extends Fragment {
         // Initialize variables
         view = inflater.inflate(R.layout.fragment_prediction, container, false);
         listview = view.findViewById(R.id.prediction_list);
-        list = new ArrayList<String>();
         loading = view.findViewById(R.id.progressbar_loading);
+        List<Map<String, String>> prediction_list = new ArrayList<Map<String, String>>();
 
         PredictionSQLiteOpenHelper prediction_db = new PredictionSQLiteOpenHelper(getActivity());
         Cursor local_predictions = prediction_db.getPredictions();
         if (local_predictions.moveToFirst()) {
             do {
-                list.add(local_predictions.getString(4));
+                Map<String, String> prediction_data = new HashMap<String, String>(2);
+                prediction_data.put("id", local_predictions.getString(0));
+                prediction_data.put("prediction_result", local_predictions.getString(2));
+                prediction_data.put("date", local_predictions.getString(4));
+                prediction_list.add(prediction_data);
             } while (local_predictions.moveToNext());
         }
 
-        adapter = new ArrayAdapter(getActivity(), android.R.layout.simple_list_item_1, list);
+        adapter = new PredictionAdapter(getActivity(), prediction_list);
         loading.setVisibility(View.GONE);
         listview.setAdapter(adapter);
 
         return view;
     }
+
+
 
 }
 
