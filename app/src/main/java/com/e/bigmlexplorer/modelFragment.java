@@ -61,7 +61,7 @@ public class modelFragment extends Fragment {
                             MainActivity.STORAGE
                     );
                     // Models
-                    JSONObject models = api.listModels(null);
+                    JSONObject models = api.listModels("limit=100");
                     model_list_names = getModelListNames(models);
                     // Ensembles
                     JSONObject ensembles = api.listEnsembles(null);

@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import java.util.List;
@@ -60,7 +61,7 @@ public class PredictionAdapter extends BaseAdapter {
         textViewItemDescription.setText(prediction.get("date"));
 
 
-        final Button delete = convertView.findViewById(R.id.delete_btn);
+        final ImageButton delete = convertView.findViewById(R.id.delete_btn);
         delete.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

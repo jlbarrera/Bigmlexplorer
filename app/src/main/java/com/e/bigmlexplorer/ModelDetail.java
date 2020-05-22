@@ -8,6 +8,10 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.InputType;
@@ -40,7 +44,7 @@ import java.util.concurrent.ExecutionException;
 import com.google.android.material.slider.Slider;
 import com.google.android.material.textfield.TextInputLayout;
 
-public class ModelDetail extends AppCompatActivity {
+public class ModelDetail extends AppCompatActivity implements SensorEventListener {
 
     public static String MODEL_ID;
     public static String MODEL_NAME;
@@ -53,8 +57,10 @@ public class ModelDetail extends AppCompatActivity {
     public static Map<Integer, String> slider_input_fields = new HashMap<Integer, String>();
     public static Map<Integer, String> categorical_input_fields = new HashMap<Integer, String>();
     public static Map<String, Long> categorical_options_input_fields = new HashMap<String, Long>();
-    public static Map<Integer, Object> input_fields = new HashMap<Integer, Object>();
-
+    public static Map<Object, String> input_fields = new HashMap<Object, String>();
+    private SensorManager sensorManager;
+    private Sensor sensor;
+    private long lastUpdate = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +72,11 @@ public class ModelDetail extends AppCompatActivity {
         slider_input_fields.clear();
         categorical_options_input_fields.clear();
         input_fields.clear();
+
+        // Accelerometer
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        sensorManager.registerListener(this, sensor , SensorManager.SENSOR_DELAY_NORMAL);
 
         // Get parameters from Models Activity
         Intent intent = getIntent();
@@ -149,22 +160,23 @@ public class ModelDetail extends AppCompatActivity {
             
             if (fields.get(key) instanceof JSONObject && !objective_field_id.equals(key)) {
                 JSONObject field = (JSONObject) fields.get(key);
-                int Id = Integer.parseInt(key);
-                input_fields.put(Id, null);
+                int Id = Integer.parseInt(key.replace("-",""), 16);
+                String name = (String) field.get("name");
+                input_fields.put(key, name);
 
                 // Common fields values
                 String field_type = (String) field.get("optype");
                 JSONObject summary = (JSONObject) field.get("summary");
-                String label = (String) field.get("label");
+                String label = (String) field.get("name");
 
                 // Numeric fields
                 if (field_type.equals("numeric")) {
-                    int maximum = 0;
-                    int minimum = 0;
+                    long maximum = 0;
+                    long minimum = 0;
                     Object max = summary.get("maximum");
                     Object min = summary.get("minimum");
-                    maximum = ((Number) max).intValue();
-                    minimum = ((Number) min).intValue();
+                    maximum = ((Number) max).longValue();
+                    minimum = ((Number) min).longValue();
                     createSlider(Id, 0, maximum, minimum, label);
                     slider_input_fields.put(Id, key);
                 }
@@ -207,11 +219,12 @@ public class ModelDetail extends AppCompatActivity {
      * @param minimum
      * @param label
      */
-    public void createSlider(int Id, int stepSize, int maximum, int minimum, String label) {
+    public void createSlider(int Id, int stepSize, long maximum, long minimum, String label) {
         LinearLayout fieldsContainer = findViewById(R.id.fieldsContainer);
 
         Slider slider = new Slider(this);
         slider.setStepSize(stepSize);
+        maximum = maximum == minimum ? maximum + 1 : maximum;
         slider.setValueTo(maximum);
         slider.setValueFrom(minimum);
         slider.setId(Id);
@@ -333,7 +346,6 @@ public class ModelDetail extends AppCompatActivity {
             float sliderValue = slider.getValue();
             if (sliderValue != 0.0) {
                 inputData.put(slider_input_fields.get(key), slider.getValue());
-                input_fields.put(key, slider.getValue());
             }
         }
         // Get values from dropdown (categorical)
@@ -344,7 +356,6 @@ public class ModelDetail extends AppCompatActivity {
             if (!dropdownValue.equals("")) {
                 Long option_id = categorical_options_input_fields.get(dropdownValue);
                 inputData.put(categorical_input_fields.get(key), dropdownValue);
-                input_fields.put(key, dropdownValue);
             }
         }
 
@@ -356,10 +367,10 @@ public class ModelDetail extends AppCompatActivity {
         String result = "";
         if (MODEL_TYPE.equals("Model")) {
             Prediction prediction = LOCALMODEL.predict(inputData);
-            result = (String) prediction.get("prediction");
+            result = prediction.get("prediction").toString();
         } else if (MODEL_TYPE.equals("Ensemble")) {
             HashMap<String, Object> prediction = LOCALENSEMBLE.predict(inputData, null, null, null, null, null, true, null);
-            result = (String) prediction.get("prediction");
+            result = prediction.get("prediction").toString();
         }
 
         return result;
@@ -405,4 +416,60 @@ public class ModelDetail extends AppCompatActivity {
         return saved;
     }
 
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        Sensor mySensor = event.sensor;
+
+        if (mySensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+            float x = event.values[0];
+            float y = event.values[1];
+            float z = event.values[2];
+
+            long curTime = System.currentTimeMillis();
+
+            if ((curTime - lastUpdate) > 1000) {
+                lastUpdate = curTime;
+
+                // Update slider values
+                LinearLayout sliderContainer = findViewById(R.id.fieldsContainer);
+                for (Integer key : slider_input_fields.keySet()) {
+                    String bml_id = slider_input_fields.get(key);
+                    String bml_name = input_fields.get(bml_id);
+                    if (bml_name.equals("acc_x_axis")) {
+                        Slider slider = sliderContainer.findViewById(key);
+                        if (slider != null) {
+                            slider.setValue(x);
+                        }
+                    } else if (bml_name.equals("acc_y_axis")) {
+                        Slider slider = sliderContainer.findViewById(key);
+                        if (slider != null) {
+                            slider.setValue(y);
+                        }
+                    } else if (bml_name.equals("acc_z_axis")) {
+                        Slider slider = sliderContainer.findViewById(key);
+                        if (slider != null) {
+                            slider.setValue(z);
+                        }
+                    }
+                }
+
+            }
+
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
+    protected void onPause() {
+        super.onPause();
+        sensorManager.unregisterListener(this);
+    }
+
+    protected void onResume() {
+        super.onResume();
+        sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL);
+    }
 }

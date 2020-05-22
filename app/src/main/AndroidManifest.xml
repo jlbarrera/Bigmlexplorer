@@ -11,10 +11,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".SavedPredictions"></activity>
-        <activity android:name=".ModelDetail" />
-        <activity android:name=".Models" />
-        <activity android:name=".MainActivity">
+        <activity android:name=".SavedPredictions" android:screenOrientation="portrait"></activity>
+        <activity android:name=".ModelDetail" android:screenOrientation="portrait" />
+        <activity android:name=".Models" android:screenOrientation="portrait" />
+        <activity android:name=".MainActivity" android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
