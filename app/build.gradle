@@ -37,4 +37,5 @@ dependencies {
     implementation 'com.android.volley:volley:1.1.1'
     implementation 'com.google.android.material:material:1.2.0-alpha05'
     implementation 'org.bigml:bigml-binding:1.8.13'
+    implementation 'com.opencsv:opencsv:4.1'
 }
