@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -11,7 +11,9 @@
         android:id="@+id/prediction_result"
         android:layout_width="318dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
         android:paddingTop="20dp"
         android:paddingRight="20dp"
         android:textAppearance="?attr/textAppearanceListItem"
@@ -19,11 +21,10 @@
 
     <TextView
         android:id="@+id/prediction_date"
-        android:layout_width="322dp"
+        android:layout_width="318dp"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/model_name"
-        android:layout_alignStart="@+id/model_name"
-        android:paddingRight="20dp"
+        android:layout_below="@+id/prediction_result"
+        android:layout_marginLeft="20dp"
         android:paddingBottom="20dp"
         android:textAppearance="?attr/textAppearanceListItemSecondary" />
 
@@ -31,10 +32,13 @@
         android:id="@+id/delete_btn"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_centerVertical="true"
         android:layout_marginTop="15dp"
         android:layout_marginEnd="0dp"
         android:src="@android:drawable/ic_menu_delete"
+        android:background="@null"
         android:text="Delete"
         android:textAlignment="textEnd" />
 
-</LinearLayout>
+</RelativeLayout>

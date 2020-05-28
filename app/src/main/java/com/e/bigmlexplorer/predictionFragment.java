@@ -54,7 +54,7 @@ public class predictionFragment extends Fragment {
             do {
                 Map<String, String> prediction_data = new HashMap<String, String>(2);
                 prediction_data.put("id", local_predictions.getString(0));
-                prediction_data.put("prediction_result", local_predictions.getString(2));
+                prediction_data.put("prediction_result", local_predictions.getString(5) + ": " + local_predictions.getString(2));
                 prediction_data.put("date", local_predictions.getString(4));
                 prediction_list.add(prediction_data);
             } while (local_predictions.moveToNext());

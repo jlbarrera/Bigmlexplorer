@@ -26,7 +26,8 @@ public class PredictionSQLiteOpenHelper extends SQLiteOpenHelper {
     private static final String PREDICTION = "prediction";
     private static final String INPUT_DATA = "input_data";
     private static final String DATE = "date";
-    private static final String[] PREDICTION_COLUMNS = {PREDICTION_ID, TYPE, PREDICTION, INPUT_DATA, DATE};
+    private static final String MODEL = "model";
+    private static final String[] PREDICTION_COLUMNS = {PREDICTION_ID, TYPE, PREDICTION, INPUT_DATA, DATE, MODEL};
 
     public PredictionSQLiteOpenHelper(@Nullable Context context) {
         super(context, DATABASE_NAME, null, 1);
@@ -39,7 +40,8 @@ public class PredictionSQLiteOpenHelper extends SQLiteOpenHelper {
                 "" + TYPE + " TEXT,  " +
                 "" + PREDICTION + " TEXT, " +
                 "" + INPUT_DATA + " TEXT, " +
-                "" + DATE + " DATETIME)"
+                "" + DATE + " DATETIME, " +
+                "" + MODEL + " TEXT)"
         );
     }
 
@@ -51,11 +53,12 @@ public class PredictionSQLiteOpenHelper extends SQLiteOpenHelper {
                 "" + TYPE + " TEXT,  " +
                 "" + PREDICTION + " TEXT, " +
                 "" + INPUT_DATA + " TEXT, " +
-                "" + DATE + " DATETIME)"
+                "" + DATE + " DATETIME, " +
+                "" + MODEL + " TEXT)"
         );
     }
 
-    public boolean savePrediction(JSONObject inputData, String prediction, String type) {
+    public boolean savePrediction(JSONObject inputData, String prediction, String type, String model) {
         SQLiteDatabase db = this.getReadableDatabase();
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
         Date date = new Date();
@@ -64,6 +67,7 @@ public class PredictionSQLiteOpenHelper extends SQLiteOpenHelper {
         new_prediction.put(PREDICTION, prediction);
         new_prediction.put(INPUT_DATA, inputData.toString());
         new_prediction.put(DATE, dateFormat.format(date));
+        new_prediction.put(MODEL, model);
 
         long row = db.insert(PREDICTION_TABLE, null, new_prediction);
 

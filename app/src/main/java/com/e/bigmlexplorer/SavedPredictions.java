@@ -73,7 +73,7 @@ public class SavedPredictions extends AppCompatActivity {
 
         writer = new CSVWriter(mFileWriter);
 
-        String[] header = {"id", "prediction_result", "date"};
+        String[] header = {"id", "type", "prediction_result", "input_fields", "date", "model"};
         writer.writeNext(header);
 
         PredictionSQLiteOpenHelper prediction_db = new PredictionSQLiteOpenHelper(this);
@@ -82,8 +82,11 @@ public class SavedPredictions extends AppCompatActivity {
             do {
                 String[] data = {
                     local_predictions.getString(0),
+                    local_predictions.getString(1),
                     local_predictions.getString(2),
-                        local_predictions.getString(4)
+                    local_predictions.getString(3),
+                    local_predictions.getString(4),
+                    local_predictions.getString(5)
                 };
 
                 writer.writeNext(data);
