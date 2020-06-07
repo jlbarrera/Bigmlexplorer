@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -52,6 +53,7 @@ public class ModelDetail extends AppCompatActivity implements SensorEventListene
     public static String DATASET_ID;
     public static String OBJECTIVE;
     public static String PREDICTION;
+    public static float CONFIDENCE;
     public static LocalPredictiveModel LOCALMODEL;
     public static LocalEnsemble LOCALENSEMBLE;
     public static Map<Integer, String> slider_input_fields = new HashMap<Integer, String>();
@@ -160,7 +162,7 @@ public class ModelDetail extends AppCompatActivity implements SensorEventListene
             
             if (fields.get(key) instanceof JSONObject && !objective_field_id.equals(key)) {
                 JSONObject field = (JSONObject) fields.get(key);
-                int Id = Integer.parseInt(key.replace("-",""), 16);
+                int Id = Integer.parseInt(key.replace("-","A"), 16);
                 String name = (String) field.get("name");
                 input_fields.put(key, name);
 
@@ -324,10 +326,23 @@ public class ModelDetail extends AppCompatActivity implements SensorEventListene
 
        JSONObject inputData = getInputData();
 
-        PREDICTION = offlinePrediction(inputData);
+        Map<String, String> result = offlinePrediction(inputData);
+
+        PREDICTION = result.get("prediction");
+        CONFIDENCE = Float.parseFloat(result.get("confidence"));
 
         TextView prediction = findViewById(R.id.prediction);
-        prediction.setText(OBJECTIVE + ": " + PREDICTION);
+        TextView objective = findViewById(R.id.objective);
+
+        objective.setText(OBJECTIVE + ": ");
+        prediction.setText(PREDICTION);
+        if (CONFIDENCE > 0.8) {
+            prediction.setTextColor(Color.parseColor("#00c853"));
+        } else if (CONFIDENCE > 0.5) {
+            prediction.setTextColor(Color.parseColor("#ff6d00"));
+        } else {
+            prediction.setTextColor(Color.parseColor("#d50000"));
+        }
 
     }
 
@@ -362,15 +377,18 @@ public class ModelDetail extends AppCompatActivity implements SensorEventListene
         return inputData;
     }
 
-    public String offlinePrediction(JSONObject inputData) throws Exception {
+    public Map<String, String> offlinePrediction(JSONObject inputData) throws Exception {
 
-        String result = "";
+        Map<String, String> result = new HashMap<String, String>();
+
         if (MODEL_TYPE.equals("Model")) {
             Prediction prediction = LOCALMODEL.predict(inputData);
-            result = prediction.get("prediction").toString();
+            result.put("prediction", prediction.get("prediction").toString());
+            result.put("confidence", prediction.get("confidence").toString());
         } else if (MODEL_TYPE.equals("Ensemble")) {
             HashMap<String, Object> prediction = LOCALENSEMBLE.predict(inputData, null, null, null, null, null, true, null);
-            result = prediction.get("prediction").toString();
+            result.put("prediction", prediction.get("prediction").toString());
+            result.put("confidence", prediction.get("confidence").toString());
         }
 
         return result;
